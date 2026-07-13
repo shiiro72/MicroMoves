@@ -1,0 +1,91 @@
+name: Flutter Build & CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build Flutter App
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout Code
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # 2. Setup Java Environment
+      - name: Setup Java (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      # 3. Setup Flutter Environment
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      # 4. Install Dependencies
+      - name: Get Dependencies
+        run: flutter pub get
+
+      # 5. Run Flutter Analyze
+      - name: Lint and Analyze
+        run: flutter analyze
+
+      # 6. Run Tests
+      - name: Run Tests
+        run: flutter test
+
+      # 7. Build Debug APK (On pushes to main / PRs)
+      - name: Build Debug APK
+        if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
+        run: flutter build apk --debug
+
+      # 8. Upload Debug APK Artifact (On pushes to main / PRs)
+      - name: Upload Debug APK Artifact
+        if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+
+      # 9. Configure Android Release Signing (On version tags, if secrets are configured)
+      - name: Configure Android Release Signing
+        if: startsWith(github.ref, 'refs/tags/v') && secrets.KEYSTORE_BASE64 != null
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          echo "keyAlias=$KEY_ALIAS" > android/key.properties
+          echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
+          echo "storeFile=upload-keystore.jks" >> android/key.properties
+          echo "storePassword=$STORE_PASSWORD" >> android/key.properties
+
+      # 10. Build Release APK and App Bundle (On version tags, e.g. v1.0.0)
+      - name: Build Release APK & App Bundle
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          flutter build apk --release
+          flutter build appbundle --release
+
+      # 11. Upload Release Artifacts (On version tags, e.g. v1.0.0)
+      - name: Upload Release Artifacts
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/bundle/release/app-release.aab
