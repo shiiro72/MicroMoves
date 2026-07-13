@@ -88,7 +88,7 @@ class HistoryScreen extends StatelessWidget {
 
           return ListTile(
             leading: CircleAvatar(
-              backgroundColor: iconColor.withOpacity(0.12),
+              backgroundColor: iconColor.withValues(alpha: 0.12),
               child: Icon(iconData, color: iconColor),
             ),
             title: Text(
