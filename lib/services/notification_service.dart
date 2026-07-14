@@ -34,6 +34,23 @@ class NotificationService {
       settings: initSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) {
         // Handle background or inline notifications
+        final action = response.actionId; // 'done', 'snooze', 'skip', or null
+        final payload = response.payload;
+        if (payload != null && action != null) {
+          final parts = payload.split('|');
+          if (parts.length == 4) {
+            final exerciseId = int.tryParse(parts[0]);
+            final name = parts[1];
+            final category = parts[2];
+            final value = int.tryParse(parts[3]);
+            if (exerciseId != null && value != null) {
+              activeSimulation = null; // Clear the simulated notification banner
+              if (onSimulatedActionTriggered != null) {
+                onSimulatedActionTriggered!(action, exerciseId, name, category, value);
+              }
+            }
+          }
+        }
       },
     );
   }
@@ -75,7 +92,7 @@ class NotificationService {
     );
   }
 
-  /// Triggers a simulated notification popup in-app
+  /// Triggers a simulated notification popup in-app and sends a real system-level local notification
   void triggerSimulatedNotification({
     required int exerciseId,
     required String name,
@@ -90,6 +107,19 @@ class NotificationService {
       value: value,
       isTimeBased: isTimeBased,
     );
+
+    final valueText = isTimeBased
+        ? (value >= 60 ? '${value ~/ 60}m ${value % 60 > 0 ? "${value % 60}s" : ""}' : '${value}s')
+        : '$value';
+
+    showNotification(
+      id: exerciseId,
+      title: 'Time to move!',
+      body: 'Do $valueText $name ($category)',
+      payload: '$exerciseId|$name|$category|$value',
+    ).catchError((_) {
+      // Ignore notification errors in unsupported/headless/test environments
+    });
   }
 
   void handleSimulatedAction(String action) {
