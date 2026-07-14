@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'dashboard_screen.dart';
 import 'exercises_screen.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/simulated_notification_overlay.dart';
+import '../services/app_state.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -12,8 +14,29 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (mounted) {
+        context.read<AppState>().loadData();
+      }
+    }
+  }
 
   final List<Widget> _screens = [
     const DashboardScreen(),
