@@ -98,65 +98,18 @@ class AppState extends ChangeNotifier {
 
   /// Handles completion of an exercise, incrementing completion count and applying progression rules
   Future<void> completeExercise(int exerciseId, String name, String category, int value) async {
-    final idx = _exercises.indexWhere((e) => e.id == exerciseId);
-    if (idx != -1) {
-      var ex = _exercises[idx];
-      final newCount = ex.completionCount + 1;
-      int newValue = ex.currentValue;
-
-      // Progression logic:
-      // "Increase: +incrementAmount reps/secs every incrementFrequency completions up to maxValue"
-      if (ex.incrementFrequency > 0 && newCount % ex.incrementFrequency == 0) {
-        newValue = ex.currentValue + ex.incrementAmount;
-        if (newValue > ex.maxValue) {
-          newValue = ex.maxValue;
-        }
-      }
-
-      final updated = ex.copyWith(
-        completionCount: newCount,
-        currentValue: newValue,
-      );
-      await _dbHelper.updateExercise(updated);
-      _exercises[idx] = updated;
-    }
-
-    final entry = HistoryEntry(
-      exerciseName: name,
-      category: category,
-      timestamp: DateTime.now().toIso8601String(),
-      status: 'completed',
-      value: value,
-    );
-    await _dbHelper.insertHistoryEntry(entry);
-    _history.insert(0, entry);
-    notifyListeners();
+    await _dbHelper.completeExercise(exerciseId, name, category, value);
+    await loadData();
   }
 
   Future<void> skipExercise(int exerciseId, String name, String category, int value) async {
-    final entry = HistoryEntry(
-      exerciseName: name,
-      category: category,
-      timestamp: DateTime.now().toIso8601String(),
-      status: 'skipped',
-      value: value,
-    );
-    await _dbHelper.insertHistoryEntry(entry);
-    _history.insert(0, entry);
-    notifyListeners();
+    await _dbHelper.skipExercise(exerciseId, name, category, value);
+    await loadData();
   }
 
   Future<void> snoozeExercise(int exerciseId, String name, String category, int value) async {
-    final entry = HistoryEntry(
-      exerciseName: name,
-      category: category,
-      timestamp: DateTime.now().toIso8601String(),
-      status: 'snoozed',
-      value: value,
-    );
-    await _dbHelper.insertHistoryEntry(entry);
-    _history.insert(0, entry);
-    notifyListeners();
+    await _dbHelper.snoozeExercise(exerciseId, name, category, value);
+    await loadData();
   }
 
   Future<void> clearHistory() async {

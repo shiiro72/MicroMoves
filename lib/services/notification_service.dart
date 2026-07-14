@@ -1,5 +1,31 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_10y.dart' as tz;
+import 'database_helper.dart';
+
+@pragma('vm:entry-point')
+void notificationTapBackground(NotificationResponse response) async {
+  final action = response.actionId; // 'done', 'snooze', 'skip', or null
+  final payload = response.payload;
+  if (payload != null && action != null) {
+    final parts = payload.split('|');
+    if (parts.length == 4) {
+      final exerciseId = int.tryParse(parts[0]);
+      final name = parts[1];
+      final category = parts[2];
+      final value = int.tryParse(parts[3]);
+      if (exerciseId != null && value != null) {
+        final dbHelper = DatabaseHelper.instance;
+        if (action == 'done') {
+          await dbHelper.completeExercise(exerciseId, name, category, value);
+        } else if (action == 'snooze') {
+          await dbHelper.snoozeExercise(exerciseId, name, category, value);
+        } else if (action == 'skip') {
+          await dbHelper.skipExercise(exerciseId, name, category, value);
+        }
+      }
+    }
+  }
+}
 
 class NotificationService {
   static final NotificationService instance = NotificationService._init();
@@ -52,6 +78,7 @@ class NotificationService {
           }
         }
       },
+      onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
     );
   }
 
