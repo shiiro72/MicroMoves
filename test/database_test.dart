@@ -102,5 +102,38 @@ void main() {
       history = await dbHelper.getHistory();
       expect(history.isEmpty, true);
     });
+
+    test('completeExercise progression and history entry in database', () async {
+      final exercises = await dbHelper.getExercises();
+      final squats = exercises.firstWhere((e) => e.name == 'Squats');
+
+      expect(squats.currentValue, 12);
+      expect(squats.completionCount, 0);
+
+      // Call completeExercise
+      await dbHelper.completeExercise(squats.id!, squats.name, squats.category, squats.currentValue);
+
+      final updatedExercises = await dbHelper.getExercises();
+      final updatedSquats = updatedExercises.firstWhere((e) => e.name == 'Squats');
+      expect(updatedSquats.completionCount, 1);
+
+      final history = await dbHelper.getHistory();
+      expect(history.length, 1);
+      expect(history.first.exerciseName, 'Squats');
+      expect(history.first.status, 'completed');
+    });
+
+    test('skipExercise and snoozeExercise database records', () async {
+      final exercises = await dbHelper.getExercises();
+      final squats = exercises.firstWhere((e) => e.name == 'Squats');
+
+      await dbHelper.skipExercise(squats.id!, squats.name, squats.category, squats.currentValue);
+      await dbHelper.snoozeExercise(squats.id!, squats.name, squats.category, squats.currentValue);
+
+      final history = await dbHelper.getHistory();
+      expect(history.length, 2);
+      expect(history[0].status, 'snoozed');
+      expect(history[1].status, 'skipped');
+    });
   });
 }

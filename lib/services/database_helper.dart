@@ -331,6 +331,71 @@ class DatabaseHelper {
     await db.delete('history');
   }
 
+  // Helper to fetch single exercise by ID
+  Future<Exercise?> getExerciseById(int id) async {
+    final db = await database;
+    final maps = await db.query('exercises', where: 'id = ?', whereArgs: [id]);
+    if (maps.isNotEmpty) {
+      return Exercise.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  // Direct operations for background isolate / app notifications
+  Future<void> completeExercise(int exerciseId, String name, String category, int value) async {
+    final ex = await getExerciseById(exerciseId);
+    if (ex != null) {
+      final newCount = ex.completionCount + 1;
+      int newValue = ex.currentValue;
+
+      // Progression logic:
+      // "Increase: +incrementAmount reps/secs every incrementFrequency completions up to maxValue"
+      if (ex.incrementFrequency > 0 && newCount % ex.incrementFrequency == 0) {
+        newValue = ex.currentValue + ex.incrementAmount;
+        if (newValue > ex.maxValue) {
+          newValue = ex.maxValue;
+        }
+      }
+
+      final updated = ex.copyWith(
+        completionCount: newCount,
+        currentValue: newValue,
+      );
+      await updateExercise(updated);
+    }
+
+    final entry = HistoryEntry(
+      exerciseName: name,
+      category: category,
+      timestamp: DateTime.now().toIso8601String(),
+      status: 'completed',
+      value: value,
+    );
+    await insertHistoryEntry(entry);
+  }
+
+  Future<void> skipExercise(int exerciseId, String name, String category, int value) async {
+    final entry = HistoryEntry(
+      exerciseName: name,
+      category: category,
+      timestamp: DateTime.now().toIso8601String(),
+      status: 'skipped',
+      value: value,
+    );
+    await insertHistoryEntry(entry);
+  }
+
+  Future<void> snoozeExercise(int exerciseId, String name, String category, int value) async {
+    final entry = HistoryEntry(
+      exerciseName: name,
+      category: category,
+      timestamp: DateTime.now().toIso8601String(),
+      status: 'snoozed',
+      value: value,
+    );
+    await insertHistoryEntry(entry);
+  }
+
   // Close
   Future<void> close() async {
     final db = _database;
