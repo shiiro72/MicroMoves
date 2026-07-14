@@ -41,6 +41,7 @@ class AppState extends ChangeNotifier {
         await skipExercise(exerciseId, name, category, value);
       }
     };
+    await scheduleUpcomingReminders();
   }
 
   Future<void> loadData() async {
@@ -62,6 +63,7 @@ class AppState extends ChangeNotifier {
       final updated = _exercises[idx].copyWith(isEnabled: isEnabled);
       await _dbHelper.updateExercise(updated);
       _exercises[idx] = updated;
+      await scheduleUpcomingReminders();
       notifyListeners();
     }
   }
@@ -77,12 +79,14 @@ class AppState extends ChangeNotifier {
         _exercises[idx] = exercise;
       }
     }
+    await scheduleUpcomingReminders();
     notifyListeners();
   }
 
   Future<void> deleteExercise(int id) async {
     await _dbHelper.deleteExercise(id);
     _exercises.removeWhere((e) => e.id == id);
+    await scheduleUpcomingReminders();
     notifyListeners();
   }
 
@@ -91,6 +95,7 @@ class AppState extends ChangeNotifier {
   Future<void> updateSettings(Settings newSettings) async {
     await _dbHelper.updateSettings(newSettings);
     _settings = newSettings;
+    await scheduleUpcomingReminders();
     notifyListeners();
   }
 
@@ -100,22 +105,69 @@ class AppState extends ChangeNotifier {
   Future<void> completeExercise(int exerciseId, String name, String category, int value) async {
     await _dbHelper.completeExercise(exerciseId, name, category, value);
     await loadData();
+    await scheduleUpcomingReminders();
   }
 
   Future<void> skipExercise(int exerciseId, String name, String category, int value) async {
     await _dbHelper.skipExercise(exerciseId, name, category, value);
     await loadData();
+    await scheduleUpcomingReminders();
   }
 
   Future<void> snoozeExercise(int exerciseId, String name, String category, int value) async {
     await _dbHelper.snoozeExercise(exerciseId, name, category, value);
+    try {
+      final snoozeTime = DateTime.now().add(Duration(minutes: _settings.snoozeDurationMinutes));
+      await _notificationService.scheduleSnoozeNotification(
+        exerciseId: exerciseId,
+        name: name,
+        category: category,
+        value: value,
+        scheduledTime: snoozeTime,
+      );
+    } catch (_) {}
     await loadData();
+    await scheduleUpcomingReminders();
   }
 
   Future<void> clearHistory() async {
     await _dbHelper.clearHistory();
     _history.clear();
+    await scheduleUpcomingReminders();
     notifyListeners();
+  }
+
+  /// Triggers a background reschedule of all upcoming reminders.
+  Future<void> scheduleUpcomingReminders() async {
+    try {
+      String? lastExName;
+      String? lastCategory;
+      if (_history.isNotEmpty) {
+        final lastRealEntry = _history.firstWhere(
+          (e) => e.status == 'completed' || e.status == 'skipped',
+          orElse: () => HistoryEntry(
+            exerciseName: '',
+            category: '',
+            timestamp: '',
+            status: '',
+            value: 0,
+          ),
+        );
+        if (lastRealEntry.exerciseName.isNotEmpty) {
+          lastExName = lastRealEntry.exerciseName;
+          lastCategory = lastRealEntry.category;
+        }
+      }
+
+      await _notificationService.scheduleUpcomingReminders(
+        exercises: _exercises,
+        settings: _settings,
+        lastExerciseName: lastExName,
+        lastCategory: lastCategory,
+      );
+    } catch (_) {
+      // Ignore in unsupported environments
+    }
   }
 
   // --- Streak and Counts Calculations ---
