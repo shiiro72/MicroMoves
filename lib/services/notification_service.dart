@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_10y.dart' as tz_init;
 import 'package:timezone/timezone.dart' as tz;
@@ -149,6 +150,18 @@ class NotificationService {
       },
       onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
     );
+
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      final androidPlugin = _localNotifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      if (androidPlugin != null) {
+        try {
+          await androidPlugin.requestNotificationsPermission();
+        } catch (_) {}
+        try {
+          await androidPlugin.requestExactAlarmsPermission();
+        } catch (_) {}
+      }
+    }
   }
 
   Future<void> showNotification({

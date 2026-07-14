@@ -23,7 +23,10 @@ void main() {
 
       appState = AppState();
       // Wait for async AppState init
-      await Future.delayed(const Duration(milliseconds: 150));
+      for (int i = 0; i < 20; i++) {
+        if (appState.exercises.isNotEmpty) break;
+        await Future.delayed(const Duration(milliseconds: 50));
+      }
     });
 
     test('Progression logic works correctly', () async {
