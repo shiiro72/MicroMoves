@@ -144,7 +144,7 @@ class _MonthlyCalendarState extends State<MonthlyCalendar> {
                 return Container(
                   decoration: BoxDecoration(
                     color: isToday
-                        ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5)
+                        ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5)
                         : null,
                     borderRadius: BorderRadius.circular(8),
                     border: isToday

@@ -4,7 +4,6 @@ import 'package:timezone/data/latest_10y.dart' as tz_init;
 import 'package:timezone/timezone.dart' as tz;
 import '../models/exercise.dart';
 import '../models/settings.dart';
-import '../models/history_entry.dart';
 import 'exercise_selection_service.dart';
 import 'database_helper.dart';
 
