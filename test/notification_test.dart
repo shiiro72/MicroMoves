@@ -84,6 +84,73 @@ void main() {
     });
   });
 
+  group('NotificationService Workday Adjustment Tests', () {
+    final notificationService = NotificationService.instance;
+
+    test('Keeps baseTime if within active workday', () {
+      final baseTime = DateTime(2024, 10, 23, 10, 15); // Wednesday (active)
+      final now = DateTime(2024, 10, 23, 10, 00);
+
+      final adjusted = notificationService.adjustToValidWorkday(
+        baseTime: baseTime,
+        startTime: '09:00',
+        endTime: '17:00',
+        activeWeekdays: [1, 2, 3, 4, 5],
+        now: now,
+      );
+
+      expect(adjusted, baseTime);
+    });
+
+    test('Rolls over to next day start if baseTime is after workday end', () {
+      final baseTime = DateTime(2024, 10, 23, 17, 30); // Wednesday (after 17:00)
+      final now = DateTime(2024, 10, 23, 10, 00);
+
+      final adjusted = notificationService.adjustToValidWorkday(
+        baseTime: baseTime,
+        startTime: '09:00',
+        endTime: '17:00',
+        activeWeekdays: [1, 2, 3, 4, 5],
+        now: now,
+      );
+
+      // Should be Thursday 09:00
+      expect(adjusted, DateTime(2024, 10, 24, 9, 0));
+    });
+
+    test('Rolls over to current day start if baseTime is before workday start', () {
+      final baseTime = DateTime(2024, 10, 23, 7, 30); // Wednesday (before 09:00)
+      final now = DateTime(2024, 10, 23, 7, 00);
+
+      final adjusted = notificationService.adjustToValidWorkday(
+        baseTime: baseTime,
+        startTime: '09:00',
+        endTime: '17:00',
+        activeWeekdays: [1, 2, 3, 4, 5],
+        now: now,
+      );
+
+      // Should be Wednesday 09:00
+      expect(adjusted, DateTime(2024, 10, 23, 9, 0));
+    });
+
+    test('Rolls over weekend to next Monday start', () {
+      final baseTime = DateTime(2024, 10, 26, 12, 0); // Saturday (weekend)
+      final now = DateTime(2024, 10, 26, 10, 0);
+
+      final adjusted = notificationService.adjustToValidWorkday(
+        baseTime: baseTime,
+        startTime: '09:00',
+        endTime: '17:00',
+        activeWeekdays: [1, 2, 3, 4, 5], // Mon-Fri
+        now: now,
+      );
+
+      // Should roll over to Monday Oct 28, 09:00
+      expect(adjusted, DateTime(2024, 10, 28, 9, 0));
+    });
+  });
+
   group('NotificationService Scheduling Integration Tests', () {
     test('scheduleUpcomingReminders executes without error', () async {
       final notificationService = NotificationService.instance;

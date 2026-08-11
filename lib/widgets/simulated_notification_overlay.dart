@@ -56,7 +56,7 @@ class SimulatedNotificationOverlay extends StatelessWidget {
                   IconButton(
                     icon: const Icon(Icons.close),
                     onPressed: () {
-                      appState.dismissSimulation();
+                      appState.handleSimulatedAction('dismiss');
                     },
                     color: Theme.of(context).colorScheme.onPrimaryContainer,
                     padding: EdgeInsets.zero,
