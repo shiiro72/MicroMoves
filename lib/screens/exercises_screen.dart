@@ -157,7 +157,7 @@ class ExercisesScreen extends StatelessWidget {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Switch(
-                                  activeColor: const Color(0xFFFF5722),
+                                  activeTrackColor: const Color(0xFFFF5722),
                                   value: ex.isEnabled,
                                   onChanged: (val) {
                                     appState.toggleExerciseEnabled(ex.id!, val);
