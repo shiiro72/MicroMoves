@@ -41,6 +41,27 @@ void notificationTapBackground(NotificationResponse response) async {
               lastCategory: lastCat,
             );
           } catch (_) {}
+        } else if (action == 'dismiss') {
+          await dbHelper.dismissExercise(exerciseId, name, category, value);
+          try {
+            final exercises = await dbHelper.getExercises();
+            final settings = await dbHelper.getSettings();
+            final history = await dbHelper.getHistory();
+            String? lastEx;
+            String? lastCat;
+            if (history.isNotEmpty) {
+              lastEx = history.first.exerciseName;
+              lastCat = history.first.category;
+            }
+            final notificationService = NotificationService.instance;
+            await notificationService.init();
+            await notificationService.scheduleUpcomingReminders(
+              exercises: exercises,
+              settings: settings,
+              lastExerciseName: lastEx,
+              lastCategory: lastCat,
+            );
+          } catch (_) {}
         } else if (action == 'snooze') {
           await dbHelper.snoozeExercise(exerciseId, name, category, value);
           try {
@@ -292,6 +313,47 @@ class NotificationService {
     return slots;
   }
 
+  /// Adjusts a target date/time to a valid workday window
+  DateTime adjustToValidWorkday({
+    required DateTime baseTime,
+    required String startTime,
+    required String endTime,
+    required List<int> activeWeekdays,
+    required DateTime now,
+  }) {
+    final startParts = startTime.split(':');
+    final endParts = endTime.split(':');
+    final startHour = int.tryParse(startParts[0]) ?? 9;
+    final startMinute = int.tryParse(startParts[1]) ?? 0;
+    final endHour = int.tryParse(endParts[0]) ?? 17;
+    final endMinute = int.tryParse(endParts[1]) ?? 0;
+
+    var current = baseTime.isBefore(now) ? now : baseTime;
+
+    for (int i = 0; i < 14; i++) {
+      final weekday = current.weekday;
+      final startWorkday = DateTime(current.year, current.month, current.day, startHour, startMinute);
+      final endWorkday = DateTime(current.year, current.month, current.day, endHour, endMinute);
+
+      if (!activeWeekdays.contains(weekday)) {
+        current = DateTime(current.year, current.month, current.day + 1, startHour, startMinute);
+        continue;
+      }
+
+      if (current.isBefore(startWorkday)) {
+        final candidate = startWorkday;
+        return candidate.isAfter(now) ? candidate : now.add(const Duration(seconds: 1));
+      } else if (current.isAfter(endWorkday)) {
+        current = DateTime(current.year, current.month, current.day + 1, startHour, startMinute);
+        continue;
+      } else {
+        return current.isAfter(now) ? current : now.add(const Duration(seconds: 1));
+      }
+    }
+
+    return now.add(const Duration(seconds: 1));
+  }
+
   /// Clears existing scheduled notifications and queues up to 50 randomized workday exercise reminders.
   Future<void> scheduleUpcomingReminders({
     required List<Exercise> exercises,
@@ -299,89 +361,102 @@ class NotificationService {
     String? lastExerciseName,
     String? lastCategory,
   }) async {
+    // 1. Fetch History
+    final history = await DatabaseHelper.instance.getHistory();
+
+    // 2. If previous notification didn't get a response (it is currently snoozed), DO NOT send/schedule another reminder
+    if (history.isNotEmpty && history.first.status == 'snoozed') {
+      try {
+        await _localNotifications.cancel(id: 1000);
+      } catch (_) {}
+      return;
+    }
+
+    // 3. Otherwise, cancel existing regular (ID 1000) and snooze (ID 9999) notifications
     try {
-      await _localNotifications.cancelAll();
+      await _localNotifications.cancel(id: 1000);
+      await _localNotifications.cancel(id: 9999);
     } catch (_) {}
 
     final enabledExercises = exercises.where((e) => e.isEnabled).toList();
     if (enabledExercises.isEmpty) return;
 
     final now = DateTime.now();
-    final upcomingSlots = calculateUpcomingSlots(
-      intervalMinutes: settings.intervalMinutes,
+
+    // 4. Calculate next reminder time relative to response of previous one
+    DateTime lastResponseTime = now;
+    if (history.isNotEmpty) {
+      final parsed = DateTime.tryParse(history.first.timestamp);
+      if (parsed != null) {
+        lastResponseTime = parsed;
+      }
+    }
+
+    final targetTime = lastResponseTime.add(Duration(minutes: settings.intervalMinutes));
+    final scheduledTime = adjustToValidWorkday(
+      baseTime: targetTime,
       startTime: settings.startTime,
       endTime: settings.endTime,
       activeWeekdays: settings.activeWeekdays,
-      fromDateTime: now,
+      now: now,
     );
-
-    if (upcomingSlots.isEmpty) return;
 
     final selectionService = ExerciseSelectionService();
-    String? prevName = lastExerciseName;
-    String? prevCategory = lastCategory;
-
-    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'micromoves_reminders',
-      'Reminders',
-      channelDescription: 'Workday movement and stretch reminders',
-      importance: Importance.max,
-      priority: Priority.high,
-      actions: <AndroidNotificationAction>[
-        AndroidNotificationAction('done', 'Done', cancelNotification: true),
-        AndroidNotificationAction('snooze', 'Snooze', cancelNotification: true),
-        AndroidNotificationAction('skip', 'Skip', cancelNotification: true),
-      ],
+    final selected = selectionService.selectNextExercise(
+      enabledExercises,
+      lastExerciseName: lastExerciseName,
+      lastCategory: lastCategory,
     );
 
-    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
-      categoryIdentifier: 'reminder_actions',
-    );
+    if (selected != null) {
+      final valueText = selected.isTimeBased
+          ? (selected.currentValue >= 60
+              ? '${selected.currentValue ~/ 60}m ${selected.currentValue % 60 > 0 ? "${selected.currentValue % 60}s" : ""}'
+              : '${selected.currentValue}s')
+          : '${selected.currentValue}';
 
-    const NotificationDetails details = NotificationDetails(
-      android: androidDetails,
-      iOS: iosDetails,
-    );
+      final payload = '${selected.id}|${selected.name}|${selected.category}|${selected.currentValue}';
+      tz.Location location;
+      try {
+        location = tz.local;
+      } catch (_) {
+        location = tz.UTC;
+      }
+      final tzDateTime = tz.TZDateTime.from(scheduledTime, location);
 
-    for (int i = 0; i < upcomingSlots.length; i++) {
-      final slot = upcomingSlots[i];
-      final selected = selectionService.selectNextExercise(
-        enabledExercises,
-        lastExerciseName: prevName,
-        lastCategory: prevCategory,
+      const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+        'micromoves_reminders',
+        'Reminders',
+        channelDescription: 'Workday movement and stretch reminders',
+        importance: Importance.max,
+        priority: Priority.high,
+        actions: <AndroidNotificationAction>[
+          AndroidNotificationAction('done', 'Done', cancelNotification: true),
+          AndroidNotificationAction('snooze', 'Snooze', cancelNotification: true),
+          AndroidNotificationAction('skip', 'Skip', cancelNotification: true),
+        ],
       );
 
-      if (selected != null) {
-        prevName = selected.name;
-        prevCategory = selected.category;
+      const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+        categoryIdentifier: 'reminder_actions',
+      );
 
-        final valueText = selected.isTimeBased
-            ? (selected.currentValue >= 60
-                ? '${selected.currentValue ~/ 60}m ${selected.currentValue % 60 > 0 ? "${selected.currentValue % 60}s" : ""}'
-                : '${selected.currentValue}s')
-            : '${selected.currentValue}';
+      const NotificationDetails details = NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      );
 
-        final payload = '${selected.id}|${selected.name}|${selected.category}|${selected.currentValue}';
-        tz.Location location;
-        try {
-          location = tz.local;
-        } catch (_) {
-          location = tz.UTC;
-        }
-        final tzDateTime = tz.TZDateTime.from(slot, location);
-
-        try {
-          await _localNotifications.zonedSchedule(
-            id: 1000 + i,
-            title: 'Time to move!',
-            body: 'Do $valueText ${selected.name} (${selected.category})',
-            scheduledDate: tzDateTime,
-            notificationDetails: details,
-            androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-            payload: payload,
-          );
-        } catch (_) {}
-      }
+      try {
+        await _localNotifications.zonedSchedule(
+          id: 1000,
+          title: 'Time to move!',
+          body: 'Do $valueText ${selected.name} (${selected.category})',
+          scheduledDate: tzDateTime,
+          notificationDetails: details,
+          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          payload: payload,
+        );
+      } catch (_) {}
     }
   }
 

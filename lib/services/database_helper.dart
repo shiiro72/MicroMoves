@@ -374,6 +374,17 @@ class DatabaseHelper {
     await insertHistoryEntry(entry);
   }
 
+  Future<void> dismissExercise(int exerciseId, String name, String category, int value) async {
+    final entry = HistoryEntry(
+      exerciseName: name,
+      category: category,
+      timestamp: DateTime.now().toIso8601String(),
+      status: 'dismissed',
+      value: value,
+    );
+    await insertHistoryEntry(entry);
+  }
+
   Future<void> skipExercise(int exerciseId, String name, String category, int value) async {
     final entry = HistoryEntry(
       exerciseName: name,

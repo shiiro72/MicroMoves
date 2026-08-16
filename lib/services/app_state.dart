@@ -39,6 +39,8 @@ class AppState extends ChangeNotifier {
         await snoozeExercise(exerciseId, name, category, value);
       } else if (action == 'skip') {
         await skipExercise(exerciseId, name, category, value);
+      } else if (action == 'dismiss') {
+        await dismissExercise(exerciseId, name, category, value);
       }
     };
     await scheduleUpcomingReminders();
@@ -104,6 +106,12 @@ class AppState extends ChangeNotifier {
   /// Handles completion of an exercise, incrementing completion count and applying progression rules
   Future<void> completeExercise(int exerciseId, String name, String category, int value) async {
     await _dbHelper.completeExercise(exerciseId, name, category, value);
+    await loadData();
+    await scheduleUpcomingReminders();
+  }
+
+  Future<void> dismissExercise(int exerciseId, String name, String category, int value) async {
+    await _dbHelper.dismissExercise(exerciseId, name, category, value);
     await loadData();
     await scheduleUpcomingReminders();
   }
