@@ -35,6 +35,7 @@ class _MonthlyCalendarState extends State<MonthlyCalendar> {
   Widget build(BuildContext context) {
     final year = _focusedMonth.year;
     final month = _focusedMonth.month;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Days in this month
     final totalDays = DateTime(year, month + 1, 0).day;
@@ -62,9 +63,7 @@ class _MonthlyCalendarState extends State<MonthlyCalendar> {
     final weekdayHeaders = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
     return Card(
-      elevation: 2,
       margin: const EdgeInsets.all(16.0),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -73,21 +72,36 @@ class _MonthlyCalendarState extends State<MonthlyCalendar> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                IconButton(
-                  key: const Key('prev_month_button'),
-                  icon: const Icon(Icons.chevron_left),
-                  onPressed: _prevMonth,
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFB300),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: isDark ? Colors.white70 : Colors.black87, width: 2),
+                  ),
+                  child: IconButton(
+                    key: const Key('prev_month_button'),
+                    icon: const Icon(Icons.chevron_left_rounded, color: Colors.black87),
+                    onPressed: _prevMonth,
+                  ),
                 ),
                 Text(
                   monthLabel,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
                       ),
                 ),
-                IconButton(
-                  key: const Key('next_month_button'),
-                  icon: const Icon(Icons.chevron_right),
-                  onPressed: _nextMonth,
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFB300),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: isDark ? Colors.white70 : Colors.black87, width: 2),
+                  ),
+                  child: IconButton(
+                    key: const Key('next_month_button'),
+                    icon: const Icon(Icons.chevron_right_rounded, color: Colors.black87),
+                    onPressed: _nextMonth,
+                  ),
                 ),
               ],
             ),
@@ -105,18 +119,28 @@ class _MonthlyCalendarState extends State<MonthlyCalendar> {
               itemCount: 7,
               itemBuilder: (context, index) {
                 return Center(
-                  child: Text(
-                    weekdayHeaders[index],
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey,
-                      fontSize: 12,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFE082),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.black87, width: 1.5),
+                    ),
+                    child: Center(
+                      child: Text(
+                        weekdayHeaders[index],
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          color: Colors.black87,
+                          fontSize: 12,
+                        ),
+                      ),
                     ),
                   ),
                 );
               },
             ),
-            const Divider(height: 12),
+            const Divider(height: 16, thickness: 1.5),
 
             // Days Grid
             GridView.builder(
@@ -144,12 +168,15 @@ class _MonthlyCalendarState extends State<MonthlyCalendar> {
                 return Container(
                   decoration: BoxDecoration(
                     color: isToday
-                        ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5)
-                        : null,
-                    borderRadius: BorderRadius.circular(8),
-                    border: isToday
-                        ? Border.all(color: Theme.of(context).colorScheme.primary, width: 1)
-                        : null,
+                        ? const Color(0xFFFF7043)
+                        : (isDark ? const Color(0xFF333333) : const Color(0xFFFFF8E1)),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isToday
+                          ? Colors.black87
+                          : (isDark ? Colors.white24 : Colors.grey.shade400),
+                      width: isToday ? 2 : 1,
+                    ),
                   ),
                   child: Stack(
                     alignment: Alignment.center,
@@ -157,19 +184,21 @@ class _MonthlyCalendarState extends State<MonthlyCalendar> {
                       Text(
                         "$dayNum",
                         style: TextStyle(
-                          fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                          fontWeight: isToday ? FontWeight.w900 : FontWeight.bold,
                           fontSize: 13,
+                          color: isToday ? Colors.white : (isDark ? Colors.white : Colors.black87),
                         ),
                       ),
                       if (completedCount > 0)
                         Positioned(
-                          right: 4,
-                          top: 4,
+                          right: 2,
+                          top: 2,
                           child: Container(
-                            padding: const EdgeInsets.all(4),
+                            padding: const EdgeInsets.all(3),
                             decoration: BoxDecoration(
-                              color: Colors.green.shade600,
+                              color: const Color(0xFF4CAF50),
                               shape: BoxShape.circle,
+                              border: Border.all(color: Colors.black87, width: 1.5),
                             ),
                             constraints: const BoxConstraints(
                               minWidth: 16,
@@ -181,7 +210,7 @@ class _MonthlyCalendarState extends State<MonthlyCalendar> {
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 8,
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight: FontWeight.w900,
                                 ),
                               ),
                             ),
